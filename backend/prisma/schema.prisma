@@ -1,0 +1,160 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// User roles within the application
+enum UserRole {
+  BUYER
+  SELLER
+  AGENT
+}
+
+/// Type of a swipe action
+enum SwipeDirection {
+  LEFT
+  RIGHT
+}
+
+model User {
+  id            String        @id @default(cuid())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  email         String        @unique
+  passwordHash  String
+  role          UserRole
+  displayName   String
+  phone         String?
+  avatarUrl     String?
+
+  // Relations
+  agentProfile  AgentProfile?
+  sellerProfile SellerProfile?
+  buyerProfile  BuyerProfile?
+  swipes        Swipe[]
+}
+
+model AgentProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  licenseNo String?
+  bio       String?
+  website   String?
+  brokerage String?
+  rating    Decimal? @db.Decimal(2, 1)
+
+  user      User     @relation(fields: [userId], references: [id])
+  listings  House[]
+}
+
+model SellerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+  homes  House[]
+}
+
+model BuyerProfile {
+  id          String          @id @default(cuid())
+  userId      String          @unique
+  user        User            @relation(fields: [userId], references: [id])
+  preferences BuyerPreference?
+}
+
+model BuyerPreference {
+  id              String    @id @default(cuid())
+  buyerId         String    @unique
+  minPrice        Int?
+  maxPrice        Int?
+  minBeds         Int?
+  maxBeds         Int?
+  minBaths        Int?
+  maxBaths        Int?
+  propertyTypes   String[]  // e.g., ["HOUSE","CONDO","TOWNHOME"]
+  neighborhoods   String[]  // free-form for now; could be normalized later
+  minSqft         Int?
+  maxSqft         Int?
+  minLotSqft      Int?
+  maxLotSqft      Int?
+  hasGarage       Boolean?
+  hasPool         Boolean?
+  yearBuiltMin    Int?
+  yearBuiltMax    Int?
+  hoaMaxMonthly   Int?
+  allowFixerUpper Boolean?
+
+  buyer           BuyerProfile @relation(fields: [buyerId], references: [id])
+}
+
+model House {
+  id            String        @id @default(cuid())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  title         String
+  description   String
+  price         Int
+  bedrooms      Int
+  bathrooms     Int
+  sqft          Int
+  lotSqft       Int?
+  yearBuilt     Int?
+  propertyType  String
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  state         String
+  postalCode    String
+  country       String        @default("US")
+  latitude      Float?
+  longitude     Float?
+  hoaMonthly    Int?
+  hasGarage     Boolean       @default(false)
+  hasPool       Boolean       @default(false)
+  isActive      Boolean       @default(true)
+
+  // Relations
+  agentId       String?
+  agent         AgentProfile? @relation(fields: [agentId], references: [id])
+  sellerId      String?
+  seller        SellerProfile? @relation(fields: [sellerId], references: [id])
+  images        HouseImage[]
+  swipes        Swipe[]
+}
+
+model HouseImage {
+  id       String @id @default(cuid())
+  houseId  String
+  url      String
+  caption  String?
+  order    Int     @default(0)
+
+  house    House  @relation(fields: [houseId], references: [id], onDelete: Cascade)
+}
+
+model Swipe {
+  id          String         @id @default(cuid())
+  createdAt   DateTime       @default(now())
+  userId      String
+  houseId     String
+  direction   SwipeDirection
+  // Optionally the time spent viewing the card before swipe
+  dwellMs     Int?
+
+  user        User  @relation(fields: [userId], references: [id])
+  house       House @relation(fields: [houseId], references: [id])
+
+  @@unique([userId, houseId])
+  @@index([userId])
+  @@index([houseId])
+}
